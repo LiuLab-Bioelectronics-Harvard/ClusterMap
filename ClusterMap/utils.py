@@ -6,6 +6,17 @@ from sklearn.neighbors import NearestNeighbors, KNeighborsClassifier
 from itertools import product
 
 def NGC(spots, radius, num_dim, gene_list):
+    
+    '''
+    Compute the NGC coordinates
+
+    params :    - radius float) = radius for neighbors search
+                - num_dim (int) = 2 or 3, number of dimensions used for cell segmentation
+                - gene_list (1Darray) = list of genes used in the dataset
+    
+    returns :   NGC matrix. Each row is a NGC vector
+    '''
+    
     if num_dim == 3:
         X_data = spots[['spot_location_1', 'spot_location_2', 'spot_location_3']]
     else:
@@ -26,13 +37,13 @@ def NGC(spots, radius, num_dim, gene_list):
 def add_dapi_points(dapi_binary, spots_denoised, ngc, num_dims):
     
     '''
-    Add sampled points for Binarized DAPI image to improve local connectivities
+    Add sampled points for Binarized DAPI image to improve local densities
 
     params :    - dapi_binary (ndarray) = Binarized DAPI image
                 - spots_denoised (dataframe) = denoised dataset
                 - nodes (list of ints) = nodes of the StellarGraph
                 - node_emb (ndarray) = node embeddings
-    returns :   - adata_g (AnnData) = anndata object with the new input for Leiden
+    returns :   - spatial locations and ngc of all the points
 
     '''
 
@@ -67,9 +78,22 @@ def add_dapi_points(dapi_binary, spots_denoised, ngc, num_dims):
     return(all_coord, all_ngc)
 
 def spearman_metric(x,y):
+    '''
+    Compute the spearman correlation as a metric
+    '''
     return(spearmanr(x,y).correlation)
 
 def DPC(spatial, ngc,  R, d_max, spearman_metric=spearman_metric):    
+    
+    '''
+    Density Peak Clustering
+
+    params :    - ngc (ndarray) = NGC vectors for each spot
+                - R (float) = rough radius of cells
+                - d_max (float) = maximum distance used in the gaussian kernel (often equal to R)
+                - spearman_metric (callable) = metric to use in the computation of genetic distance
+    '''
+    
     # Compute spatial distance
     spatial_dist = np.array(cdist(spatial, spatial, metric='euclidean'), dtype=np.float32)
     

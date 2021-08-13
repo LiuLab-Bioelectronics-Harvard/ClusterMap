@@ -7,6 +7,15 @@ import seaborn as sns
 class ClusterMap():
 
     def __init__(self, spots, dapi, gene_list, num_dims):
+        
+        '''
+        params :    - spots (dataframe) = columns should be 'spot_location_1', 'spot_location_2',
+                     ('spot_location_3'), 'gene'
+                    - dapi (ndarray) = original dapi image
+                    - gene_list (1Darray) = list of gene identities (encoded as ints)
+                    - num_dims (int) = number of dimensions for cell segmentation (2 or 3)
+        '''
+
         # self.spots = pd.read_csv(spot_path)
         # self.dapi = tifffile.imread(dapi_path)
         
@@ -22,6 +31,13 @@ class ClusterMap():
         preprocessing_data(self.spots, self.dapi_binary)
 
     def segmentation(self, R, d_max, add_dapi=False):
+        
+        '''
+        params :    - R (float) = rough radius of cells
+                    - d_max (float) = maximum distance to use (often chosen as R)
+                    - add_dapi (bool) = whether or not to add Dapi points for DPC
+        '''
+        
         spots_denoised = self.spots.loc[self.spots['is_noise']==0,:].copy()
         spots_denoised.reset_index(inplace=True)
         
