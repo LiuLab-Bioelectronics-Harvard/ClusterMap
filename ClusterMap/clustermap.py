@@ -65,4 +65,103 @@ class ClusterMap():
         plt.title('Segmentation')
         plt.show()
 
+class CellTyping():
+    def __init__(self, spots_stitched_path, var_path, gene_list, method, use_z):
+        
+        '''
+        Perform cell typing on the stitched dataset.
 
+        params :    - spots_stitched_path (str) = path of the results
+                    - gene_list (list of ints) = genes used
+                    - method (str) = name of column of results
+        '''
+        
+        self.spots_stitched_path = spots_stitched_path
+        self.spots = pd.read_csv(spots_stitched_path)
+        self.var = pd.read_csv(var_path, header=None)
+        self.var = pd.DataFrame(index=self.var.iloc[:,0].to_list())
+        self.gene_list = gene_list
+        self.method = method
+        self.use_z = use_z
+        self.markers = None
+        self.adata = None
+        self.palette = None
+        self.cell_shape = None
+    
+    def gene_profile(self, min_counts_cells=16, min_cells=10, plot=False):
+        
+        '''
+        Generate gene profile and find cell centroids. Perform normalization.
+
+        params :    - min_count_cells (int) = minimal number of counts of a cell to be not discarded
+                    - min_cells (int) = filter genes and erase the ones that are expressed in less than min_cells cells. 
+                    - plot (bool) = whether to plot the gene profile before clustering        
+        '''
+        
+        print('Generating gene expression and finding cell centroids')
+        gene_expr, obs = generate_gene_profile(self.spots, self.gene_list, use_z=self.use_z, method=self.method)
+        print('Normalizing')
+        adata = normalize_all(gene_expr, obs, self.var, min_counts_cells=min_counts_cells, min_cells=min_cells, plot=plot)
+        self.adata = adata
+
+    def cell_typing(self,n_neighbors=20, resol=1, n_clusters=None, type_clustering='leiden'):
+
+        '''
+        Performs cell typing.
+
+        params :    - n_neighbors (20) = number of neighbors to use for scanpy pp.neighbors
+                    - resol (float) = resolution of Leiden of Louvain clustering
+                    - n_clusters (int) = number of clusters to determine (in case we are using agglomerative clustering)
+                    - type_clustering (str) = type of clustering for cell typing. Can be 'leiden', 'louvain', or 'hierarchical'
+        '''
+
+        sc.tl.pca(self.adata)
+        sc.pp.neighbors(self.adata, n_neighbors=n_neighbors, n_pcs=10, random_state=42)
+        sc.tl.umap(self.adata, random_state=42)
+        if type_clustering == 'leiden':
+            print('Leiden clustering')
+            sc.tl.leiden(self.adata, resolution=resol, random_state=42, key_added='cell_type')
+        elif type_clustering == 'louvain':
+            sc.tl.louvain(self.adata, resolution=resol, random_state=42, key_added='cell_type')
+        else:
+            agg = AgglomerativeClustering(n_clusters=n_clusters, 
+                                         distance_threshold=None,
+                                         affinity='euclidean').fit(self.adata.X)
+            
+            self.adata.obs['cell_type'] = agg.labels_.astype('category')
+
+        
+        cluster_pl = sns.color_palette("tab20_r", 15)
+        self.palette = cluster_pl
+        sc.pl.umap(self.adata, color='cell_type', legend_loc='on data',
+                    legend_fontsize=12, legend_fontoutline=2, frameon=False, 
+                    title=f'clustering of cells : {type_clustering}', palette=cluster_pl, save=False)
+        sc.tl.rank_genes_groups(self.adata, 'cell_type', method='t-test')
+
+        # Pick markers 
+        markers = []
+        temp = pd.DataFrame(self.adata.uns['rank_genes_groups']['names']).head(5)
+        for i in range(temp.shape[1]):
+            curr_col = temp.iloc[:, i].to_list()
+            markers = markers + curr_col
+            print(i, curr_col)
+            
+        self.markers = markers
+       
+    
+    def plot_cell_typing_spots(self,save_path, figsize=(16,10), s=10):
+        
+        '''
+        Plot the spots colored by their cell typing
+
+        params :    - figsize (tuple) = size of the figure
+                    - s (int) = width of each point
+        '''
+
+        cell_typing2spots(self.adata, self.spots, method=self.method)
+        spots_repr = self.spots.loc[self.spots['cell_type']!=-1,:]
+        plt.figure(figsize=(figsize))
+        sns.scatterplot(x='spot_merged_1', y='spot_merged_2', data=spots_repr, hue='cell_type', s=s, palette=self.palette[:len(np.unique(spots_repr['cell_type']))], legend=True)
+        plt.title('Cell Typing')
+        plt.savefig(save_path)
+        plt.show()
