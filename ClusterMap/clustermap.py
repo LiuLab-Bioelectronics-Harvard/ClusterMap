@@ -64,6 +64,45 @@ class ClusterMap():
         sns.scatterplot(x='spot_location_1', y='spot_location_2', data=spots_repr, hue='clustermap', palette=palette, legend=False)
         plt.title('Segmentation')
         plt.show()
+    def save(self, path_save):
+        self.spots.to_csv(path_save, index=False)
+        
+
+class StitchSpots():
+    def __init__(self, path_res, path_config, res_name):
+
+        '''
+        params :    - path_res (str) = root path of the results of AutoSeg's segmentation
+                    - path_config (str) = path of tile configuration
+                    - res_name (str) = name of the column where AutoSeg's results are stored in each dataset
+        '''
+        
+        self.path_res = path_res
+        self.path_config = path_config
+        self.res_name = res_name
+       
+    def gather_tiles(self):
+        print('Gathering tiles')
+        self.spots_gathered = gather_all_tiles(self.path_res, self.res_name)
+
+    def stitch_tiles(self):
+        print('Loading config')
+        self.config = load_tile_config(self.path_config)
+        print('Stitching tiles')
+        self.img, self.num_col, self.num_row = create_img_label(self.config)
+        self.spots_all = stitch_all_tiles(self.spots_gathered, self.img, self.num_col, self.num_row, self.config, self.res_name)
+    
+    def plot_stitched_data(self, figsize=(16,10), s=0.5):
+        spots_all_repr = self.spots_all.loc[self.spots_all['cellid']>=0,:]
+        plt.figure(figsize=figsize)
+        palette = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])
+                for k in range(spots_all_repr['cellid'].unique().shape[0])]
+        sns.scatterplot(x='spot_merged_1', y='spot_merged_2', data=spots_all_repr, hue='cellid', legend=False, s=s, palette=palette)
+        plt.title('Stitched dataset')
+        plt.show()
+    
+    def save_stitched_data(self, path_save):
+        self.spots_all.to_csv(path_save, index=False)
 
 class CellTyping():
     def __init__(self, spots_stitched_path, var_path, gene_list, method, use_z):
