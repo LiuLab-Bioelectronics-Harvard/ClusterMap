@@ -1,8 +1,16 @@
 from .utils import *
 from .preprocessing import *
+from .stitch import *
+from .cell_typing import *
+from .tissue_mapping import *
+import random
 import tifffile
 import matplotlib.pyplot as plt
 import seaborn as sns
+from skimage.morphology import convex_hull_image
+from sklearn.cluster import AgglomerativeClustering
+from scipy.spatial import Delaunay
+from sklearn.metrics import adjusted_rand_score
 
 class ClusterMap():
 
@@ -204,3 +212,128 @@ class CellTyping():
         plt.title('Cell Typing')
         plt.savefig(save_path)
         plt.show()
+
+
+
+class TissueMapping():
+    def __init__(self, path_spots, path_all_spots):
+        self.path_spots = path_spots
+        self.path_all_spots = path_all_spots
+        self.spots = pd.read_csv(path_spots)
+        self.all_spots = pd.read_csv(path_all_spots)
+        try:
+            a = self.spots['cell_type']
+        except KeyError as err:
+            print('You need to do the cell typing first. See CellTyping() class')
+        
+    def compute_ncc(self, radius):
+        print('Computing cell neighborhoods')
+        self.ncc = neighboring_cell_types(self.spots, radius)
+    
+    def identify_tissues(self, n_neighbors=30, resol=0.1, figsize=(30,20), s=0.5):
+        adata = sc.AnnData(self.ncc)
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors, use_rep='X', random_state=42)
+        sc.tl.umap(adata, random_state=42)
+
+        print('Leiden clustering')
+        sc.tl.leiden(adata, resolution=resol, random_state=42, key_added='tissue')
+        sc.pl.umap(adata, color='tissue', palette='gist_ncar')
+        adata.obs['index'] = np.array(self.spots['index'].astype(int))
+        self.adata = adata
+        
+        print('Assign tissue label to each spot')
+        tissue2spot(adata, self.all_spots, 'cellid')
+
+        repres = self.all_spots.loc[self.all_spots['tissue']>=0,:]
+        plt.figure(figsize=figsize)
+        sns.scatterplot(x='spot_merged_1', y='spot_merged_2', data=repres, hue='tissue', s=s, palette=sns.color_palette('Paired', len(repres['tissue'].unique())))
+        plt.title('Tissue regions')
+        plt.show()
+    
+    def save_tissues(self, save_path):
+        self.spots.to_csv(save_path, index=False)
+
+class CellNiches():
+    def __init__(self, centroid_path, gene_expr_path):
+        self.centroid_path = centroid_path
+        self.centroids = pd.read_csv(centroid_path)
+        try:
+            self.gene_expr = np.load(gene_expr_path)
+        except KeyError as err:
+            print('You need to apply cell typing first')
+        self.tri = Delaunay(self.centroids[['cell_center_1', 'cell_center_2', 'cell_center_3']]).simplices
+    
+    def compute_counts(self):
+        cell_types = np.unique(self.centroids['cell_type'])
+        mean_cell_types = []
+        counts_per_cell_type = []
+        for cell_type in cell_types:
+            print(f'Processing cell type : {cell_type}')
+            cells = np.unique(self.centroids.loc[self.centroids['cell_type']==cell_type,:].index.to_list())
+            counts = np.zeros((len(cells),len(cell_types)))
+            for i,cell in enumerate(cells):
+                connected_idx = [cell in self.tri[i] for i in range(len(self.tri))]
+                connected_cells = np.unique(self.tri[connected_idx])
+                connected_types = self.centroids.loc[connected_cells,:].groupby('cell_type').size()
+                counts[i, connected_types.index.to_list()] = np.array(connected_types)
+            counts_per_cell_type.append(counts)
+            mean = np.mean(counts, axis=0)
+            mean_cell_types.append(mean)
+        self.mean_cell_types = mean_cell_types
+        self.counts_per_cell_type = counts_per_cell_type
+    
+    def plot_stats(self, figsize=(20,25), lw=2, size=1):
+        fig, axes = plt.subplots(nrows=len(self.centroids['cell_type'].unique()), ncols=1, figsize=figsize)
+        plt.rc('font', size=15)
+        plt.rc('axes', labelsize=10)
+        plt.rc('xtick', labelsize=10)
+
+        for i in range(len(self.mean_cell_types)):
+            dg = pd.DataFrame(zip(np.round(self.mean_cell_types[i],2), np.arange(len(self.mean_cell_types[0]))), columns=['value', 'cell_type'])
+            pl = sns.barplot(x='cell_type', y='value', data=dg, ax=axes[i],fc='white', ec='black',lw=lw)
+            pl.bar_label(pl.containers[0])
+        
+            df = pd.DataFrame(zip(np.round(np.ravel(self.counts_per_cell_type[i]),2), len(self.counts_per_cell_type[i])*list(np.arange(len(self.mean_cell_types[0])))), columns=['value', 'cell_type'])
+            sns.stripplot(x='cell_type', y='value', data=df, palette='pastel',ax=axes[i], size=size)
+            axes[i].set_frame_on(False)
+            axes[i].set_xticks([])
+            axes[i].set_yticks([])
+            axes[i].set_xlabel('')
+            axes[i].set_ylabel('Cell Type '+str(i))
+            axes[i].axhline()
+        axes[-1].set_xlabel('Cell types')
+        plt.xticks(np.arange(len(self.mean_cell_types)), ['Cell Type '+str(i) for i in range(len(self.mean_cell_types))])
+        plt.show()
+                
+    def discover_subclusters(self, resol_gene, resol_niche, n_neighbors):
+        '''
+        Compare subcelltyping from (1) gene expression subclustering and (2) cell niche expression clustering
+
+        params :    - resol_gene (float) = Leiden resolution for gene expression clustering
+                    - resol_niche (float) = Leiden resolution for niche clustering
+                    - n_neighbors (int) = number of neighbors to use to ompute Leiden's graph
+        '''
+        ari_list = []
+        cell_types = np.unique(self.centroids['cell_type'])
+        for ct in cell_types:
+            print(f'Processing cell type : {ct}')
+            ### Clustering with gene expression
+            idx = np.array(self.centroids.loc[self.centroids['cell_type']==ct, :].index, dtype=int)
+            expr_ct = self.gene_expr[idx]
+            adata_g = sc.AnnData(expr_ct)
+            sc.pp.neighbors(adata_g, n_neighbors=n_neighbors, random_state=42, use_rep='X')
+            sc.tl.umap(adata_g, random_state=42)
+            sc.tl.leiden(adata_g, resolution=resol_gene, random_state=42, key_added='subclusters')
+            sc.pl.umap(adata_g, color='subclusters')
+            
+            ## Clustering with niche expressions
+            adata_n = sc.AnnData(self.counts_per_cell_type[int(ct)])
+            sc.pp.neighbors(adata_n, n_neighbors=30, random_state=42, use_rep='X')
+            sc.tl.leiden(adata_n, resolution=resol_niche, random_state=42, key_added='niche_subclusters')
+            adata_g.obs['niche_subclusters'] = adata_n.obs['niche_subclusters']
+            sc.pl.umap(adata_g, color='niche_subclusters')
+            
+            ari = adjusted_rand_score(adata_g.obs['subclusters'], adata_n.obs['niche_subclusters'])
+            print(f'Adjusted Rand index for cell type {ct} = {ari}')
+            
+            ari_list.append(ari)
