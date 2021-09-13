@@ -11,4 +11,4 @@ We are currently uploading more files for packaging and testing and will finish 
 Data will be available at Code Ocean, DOI: 10.24433/CO.6072400.v1.
 
 
-Contributor: Yichun He, Emma Bou Hanna, Xin Tang, Jiahao Huang
+Contributor: Yichun He, Emma Bou Hanna, Jiahao Huang, Xin Tang
