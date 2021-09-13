@@ -1,5 +1,7 @@
 from .utils import *
 from .preprocessing import *
+from .postprocessing import *
+from .metrics import *
 from .stitch import *
 from .cell_typing import *
 from .tissue_mapping import *
@@ -11,10 +13,12 @@ from skimage.morphology import convex_hull_image
 from sklearn.cluster import AgglomerativeClustering
 from scipy.spatial import Delaunay
 from sklearn.metrics import adjusted_rand_score
+from skimage.color import label2rgb
+from tqdm import tqdm
 
 class ClusterMap():
 
-    def __init__(self, spots, dapi, gene_list, num_dims):
+    def __init__(self, spots, dapi, gene_list, num_dims, xy_radius,z_radius,fast_preprocess=False):
         
         '''
         params :    - spots (dataframe) = columns should be 'spot_location_1', 'spot_location_2',
@@ -31,14 +35,16 @@ class ClusterMap():
         #     self.dapi = np.transpose(self.dapi, (1,2,0))
         self.spots = spots
         self.dapi = dapi
-        self.dapi_binary, self.dapi_stacked = binarize_dapi(self.dapi)
+        self.dapi_binary, self.dapi_stacked = binarize_dapi(self.dapi,fast_preprocess)
         self.gene_list = gene_list
         self.num_dims = num_dims
+        self.xy_radius = xy_radius
+        self.z_radius = z_radius
     
-    def preprocess(self):
-        preprocessing_data(self.spots, self.dapi_binary)
+    def preprocess(self,pct_filter=0.1):
+        preprocessing_data(self.spots, self.dapi_binary,self.xy_radius,pct_filter)
 
-    def segmentation(self, R, d_max, add_dapi=False):
+    def segmentation(self,dapi_grid_interval=5, add_dapi=True,use_genedis=True):
         
         '''
         params :    - R (float) = rough radius of cells
@@ -48,30 +54,78 @@ class ClusterMap():
         
         spots_denoised = self.spots.loc[self.spots['is_noise']==0,:].copy()
         spots_denoised.reset_index(inplace=True)
+        print(f'After denoising, mRNA spots: {spots_denoised.shape[0]}')
         
         print('Computing NGC coordinates')
-        ngc = NGC(spots_denoised, R, self.num_dims, self.gene_list)
+        ngc = NGC(self, spots_denoised)
         if add_dapi:
-            print('Adding DAPI points')
-            all_coord, all_ngc = add_dapi_points(self.dapi_binary, spots_denoised, ngc, self.num_dims)
+            all_coord, all_ngc = add_dapi_points(self.dapi_binary, dapi_grid_interval,spots_denoised, ngc, self.num_dims)
+            self.num_spots_with_dapi=all_coord.shape[0]
+            print(f'After adding DAPI points, all spots:{self.num_spots_with_dapi}')
             print('DPC')
-            cell_ids = DPC(all_coord, all_ngc, R, d_max)
+            cell_ids = DPC(self,all_coord, all_ngc,use_genedis)
         else:
             spatial = np.array(spots_denoised[['spot_location_1', 'spot_location_2', 'spot_location_3']]).astype(np.float32)
             print('DPC')
-            cell_ids = DPC(spatial, ngc, R, d_max)
+            cell_ids = DPC(self,spatial, ngc,use_genedis)
+            
         self.spots['clustermap'] = -1
-
         # Let's keep only the spots' labels
         self.spots.loc[spots_denoised.loc[:, 'index'], 'clustermap'] = cell_ids[:len(ngc)]
-    
-    def plot_segmentation(self):
-        spots_repr = self.spots.loc[self.spots['clustermap']>=0,:]
-        plt.figure(figsize=(20,20))
-        palette = sns.color_palette('gist_ncar', len(spots_repr['clustermap'].unique()))
-        sns.scatterplot(x='spot_location_1', y='spot_location_2', data=spots_repr, hue='clustermap', palette=palette, legend=False)
+        
+        print('Postprocessing')
+        erase_small_clusters(self.spots,self.min_spot_per_cell)
+        res_over_dapi_erosion(self.spots, self.dapi_binary)
+        
+    def create_convex_hulls(self,figsize=(10,10)):
+        
+        '''
+        Plot the results of segmentation with convex hull instead of customized cell shapes
+        '''
+        
+        cells_unique = np.unique(self.spots['clustermap'])
+        cells_unique = cells_unique[cells_unique>=0]
+        img_res = np.zeros(self.dapi_stacked.shape)
+        for cell in cells_unique:
+            spots_portion = np.array(self.spots.loc[self.spots['clustermap']==cell,['spot_location_2', 'spot_location_1']])
+            cell_mask = np.zeros(img_res.shape)
+            cell_mask[spots_portion[:,0], spots_portion[:,1]] = 1
+            cell_ch = convex_hull_image(cell_mask)
+            img_res[cell_ch==1] = cell
+        self.ch_shape = img_res
+        colors=list(np.random.rand(self.number_cell,3))
+        img_res_rgb=label2rgb(img_res,colors=colors,bg_label=0)
+        plt.figure(figsize=figsize)
+        plt.imshow(img_res_rgb, origin='lower')
+        plt.title('Cell Shape with Convex Hull')        
+        
+    def plot_segmentation(self,figsize=(10,10),plot_dapi=False,method='clustermap',s=5):
+        spots_repr = self.spots.loc[self.spots[method]>=0,:]
+        plt.figure(figsize=figsize)
+        cmap=np.random.rand(int(max(self.spots[method])+1),3)
+        palette = list(np.random.rand(len(spots_repr[method].unique()),3)) #sns.color_palette('gist_ncar', len(spots_repr['clustermap'].unique()))
+        if plot_dapi:
+            plt.imshow(np.sum(self.dapi_binary,axis=2),origin='lower', cmap='binary_r')
+            plt.scatter(spots_repr['spot_location_1'],spots_repr['spot_location_2'],
+            c=cmap[[int(x) for x in spots_repr[method]]],s=s)
+        else:
+            plt.scatter(spots_repr['spot_location_1'],spots_repr['spot_location_2'],
+            c=cmap[[int(x) for x in spots_repr[method]]],s=s)
+#             sns.scatterplot(x='spot_location_1', y='spot_location_2', data=spots_repr, hue=method, palette=palette, legend=False)
         plt.title('Segmentation')
         plt.show()
+        
+    def calculate_metrics(self, gt_column):
+
+        '''
+        params :    - gt_column (str) : name of the column where ground truth's results are stored
+        '''
+
+        self.underseg, self.overseg = compute_metrics_over_under(self.spots, method='clustermap', real_res=gt_column)
+        print(f'OverSegmentation Score = {self.overseg} \nUnderSegmentation Score = {self.underseg}')
+        return(self.underseg, self.overseg)
+    
+        
     def save(self, path_save):
         self.spots.to_csv(path_save, index=False)
         
@@ -80,9 +134,9 @@ class StitchSpots():
     def __init__(self, path_res, path_config, res_name):
 
         '''
-        params :    - path_res (str) = root path of the results of AutoSeg's segmentation
+        params :    - path_res (str) = root path of the results of ClusterMap's segmentation
                     - path_config (str) = path of tile configuration
-                    - res_name (str) = name of the column where AutoSeg's results are stored in each dataset
+                    - res_name (str) = name of the column where ClusterMap's results are stored in each dataset
         '''
         
         self.path_res = path_res
