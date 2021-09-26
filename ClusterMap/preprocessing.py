@@ -5,8 +5,9 @@ from skimage.morphology import square,erosion,reconstruction
 from itertools import product
 from sklearn.neighbors import NearestNeighbors, LocalOutlierFactor
 from tqdm import tqdm
+from scipy.ndimage import gaussian_filter
 
-def binarize_dapi(dapi,fast_preprocess):
+def binarize_dapi(dapi,fast_preprocess,gauss_blur,sigma):
     '''
     Binarize raw dapi image
 
@@ -16,6 +17,8 @@ def binarize_dapi(dapi,fast_preprocess):
               - dapi_stacked (ndarray) =  2D stacked binarized image
     '''
     degree = len(dapi.shape)
+    if gauss_blur:
+        dapi=gaussian_filter(dapi, sigma=sigma)
     if fast_preprocess:
         if degree==2:
             #binarize dapi
@@ -49,8 +52,12 @@ def binarize_dapi(dapi,fast_preprocess):
                 dapi_one_page=dapi[:,:,t]
                 dapi_marker=erosion(dapi_one_page, square(5))
                 dapi_recon=reconstruction(dapi_marker,dapi_one_page)
-                thresh = threshold_otsu(dapi_recon)
-                binary = dapi_recon >= thresh
+                if len(np.unique(dapi_recon))<2:
+                    thresh=0
+                    binary=dapi_recon >=thresh
+                else:
+                    thresh = threshold_otsu(dapi_recon)
+                    binary = dapi_recon >= thresh
                 dapi_binary.append(binary) #z,y,x
                 ### erosion on dapi binary
             dapi_binary = np.array(dapi_binary).transpose((1,2,0))#y,x,z        

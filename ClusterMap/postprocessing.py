@@ -28,7 +28,7 @@ def res_over_dapi_erosion(spots, dapi_binary, method='clustermap', minus1 = Fals
     else:
         for cell in cell_list:
             spots_cell = spots.loc[spots[method]==cell, ['spot_location_2', 'spot_location_1', 'spot_location_3']].to_numpy()
-            number_overlap = np.sum(dapi_binary_eroded[spots_cell[:,0],spots_cell[:,1], spots_cell[:,2] - 1])
+            number_overlap = np.sum(dapi_binary_eroded[spots_cell[:,0]-1,spots_cell[:,1]-1, spots_cell[:,2] - 1])
             if number_overlap ==0:
                 spots.loc[spots[method]==cell, method] = -1   
 

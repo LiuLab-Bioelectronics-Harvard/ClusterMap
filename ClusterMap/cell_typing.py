@@ -4,8 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats.mstats import zscore
+from tqdm import tqdm
 
-def generate_gene_profile(spots, gene_list, use_z, method='leiden'):
+def generate_gene_profile(spots, gene_list, use_z, is_batch,method='leiden'):
     
     '''
     Genrate gene expression profile for cell typing
@@ -23,21 +24,28 @@ def generate_gene_profile(spots, gene_list, use_z, method='leiden'):
     ### define expression vectors for cell typing
     gene_expr_vector = np.zeros((np.unique(spots[method]).shape[0] - 1, len(gene_list)))
     centroids = []
+    cellposition=[]
     gene_expr = spots.groupby([method, 'geneid']).size()
     if use_z:
-        for cell in np.unique(spots[method])[1:]:
+        for cell in tqdm(np.unique(spots[method])[1:]):
             genes = gene_expr[cell] # number of counts per gene in cell
             gene_expr_vector[cell, np.array(genes.index) - np.min(gene_list)] = genes.to_numpy()
             cell_center = list(np.mean(spots.loc[spots[method]==cell, ['spot_merged_1', 'spot_merged_2', 'spot_merged_3']], axis=0))
+            if is_batch:
+                cellposition.append(list(spots.loc[spots[method]==cell, 'image_position'])[0])
             centroids.append(cell_center)
     else:
-        for cell in np.unique(spots[method])[1:]:
+        for cell in tqdm(np.unique(spots[method])[1:]):
             genes = gene_expr[cell] # number of counts per gene in cell 'leid'
             gene_expr_vector[cell, np.array(genes.index) - np.min(gene_list)] = genes.to_numpy()
             cell_center = list(np.mean(spots.loc[spots[method]==cell, ['spot_merged_1', 'spot_merged_2']], axis=0))
+            if is_batch:
+                cellposition.append(list(spots.loc[spots[method]==cell, 'image_position'])[0])
             centroids.append(cell_center)
     obs = pd.DataFrame(np.array(centroids), columns=['cell_center_1', 'cell_center_2', 'cell_center_3'])
-    return(gene_expr_vector, obs)
+    if is_batch:
+        obs['position']=cellposition
+    return(gene_expr_vector,obs)
 
 
 def normalize_all(gene_expr, obs, var, plot=False, min_counts_cells=16, min_cells=10):
@@ -57,8 +65,10 @@ def normalize_all(gene_expr, obs, var, plot=False, min_counts_cells=16, min_cell
     '''
 
     adata = sc.AnnData(gene_expr, obs=obs, var=var)
-    # adata.obs['total_counts'] = total_counts
-        
+#     adata.obs['total_counts'] = total_counts
+    adata.var=adata.var.rename(columns={0:'var'})
+    adata.var=adata.var.set_index('var') 
+    
     # calculate metrics
     sc.pp.calculate_qc_metrics(adata, percent_top=None, inplace=True)
     

@@ -5,6 +5,7 @@ from .metrics import *
 from .stitch import *
 from .cell_typing import *
 from .tissue_mapping import *
+from .Points2Cell import *
 import random
 import tifffile
 import matplotlib.pyplot as plt
@@ -18,7 +19,7 @@ from tqdm import tqdm
 
 class ClusterMap():
 
-    def __init__(self, spots, dapi, gene_list, num_dims, xy_radius,z_radius,fast_preprocess=False):
+    def __init__(self, spots, dapi, gene_list, num_dims, xy_radius,z_radius,fast_preprocess=False,gauss_blur=False,sigma=1):
         
         '''
         params :    - spots (dataframe) = columns should be 'spot_location_1', 'spot_location_2',
@@ -35,7 +36,7 @@ class ClusterMap():
         #     self.dapi = np.transpose(self.dapi, (1,2,0))
         self.spots = spots
         self.dapi = dapi
-        self.dapi_binary, self.dapi_stacked = binarize_dapi(self.dapi,fast_preprocess)
+        self.dapi_binary, self.dapi_stacked = binarize_dapi(self.dapi,fast_preprocess,gauss_blur, sigma)
         self.gene_list = gene_list
         self.num_dims = num_dims
         self.xy_radius = xy_radius
@@ -44,7 +45,7 @@ class ClusterMap():
     def preprocess(self,pct_filter=0.1):
         preprocessing_data(self.spots, self.dapi_binary,self.xy_radius,pct_filter)
 
-    def segmentation(self,dapi_grid_interval=5, add_dapi=True,use_genedis=True):
+    def segmentation(self,cell_num_threshold=0.015, dapi_grid_interval=5, add_dapi=True,use_genedis=True):
         
         '''
         params :    - R (float) = rough radius of cells
@@ -63,11 +64,11 @@ class ClusterMap():
             self.num_spots_with_dapi=all_coord.shape[0]
             print(f'After adding DAPI points, all spots:{self.num_spots_with_dapi}')
             print('DPC')
-            cell_ids = DPC(self,all_coord, all_ngc,use_genedis)
+            cell_ids = DPC(self,all_coord, all_ngc,cell_num_threshold,use_genedis)
         else:
             spatial = np.array(spots_denoised[['spot_location_1', 'spot_location_2', 'spot_location_3']]).astype(np.float32)
             print('DPC')
-            cell_ids = DPC(self,spatial, ngc,use_genedis)
+            cell_ids = DPC(self,spatial,ngc, cell_num_threshold, use_genedis)
             
         self.spots['clustermap'] = -1
         # Let's keep only the spots' labels
@@ -89,7 +90,7 @@ class ClusterMap():
         for cell in cells_unique:
             spots_portion = np.array(self.spots.loc[self.spots['clustermap']==cell,['spot_location_2', 'spot_location_1']])
             cell_mask = np.zeros(img_res.shape)
-            cell_mask[spots_portion[:,0], spots_portion[:,1]] = 1
+            cell_mask[spots_portion[:,0]-1, spots_portion[:,1]-1] = 1
             cell_ch = convex_hull_image(cell_mask)
             img_res[cell_ch==1] = cell
         self.ch_shape = img_res
@@ -99,8 +100,10 @@ class ClusterMap():
         plt.imshow(img_res_rgb, origin='lower')
         plt.title('Cell Shape with Convex Hull')        
         
-    def plot_segmentation(self,figsize=(10,10),plot_dapi=False,method='clustermap',s=5):
+    def plot_segmentation(self,figsize=(10,10),plot_dapi=False,method='clustermap',s=5,show=True,save=False,savepath=None):
         spots_repr = self.spots.loc[self.spots[method]>=0,:]
+        if not show:
+            plt.ioff()
         plt.figure(figsize=figsize)
         cmap=np.random.rand(int(max(self.spots[method])+1),3)
         palette = list(np.random.rand(len(spots_repr[method].unique()),3)) #sns.color_palette('gist_ncar', len(spots_repr['clustermap'].unique()))
@@ -113,7 +116,10 @@ class ClusterMap():
             c=cmap[[int(x) for x in spots_repr[method]]],s=s)
 #             sns.scatterplot(x='spot_location_1', y='spot_location_2', data=spots_repr, hue=method, palette=palette, legend=False)
         plt.title('Segmentation')
-        plt.show()
+        if save:
+            plt.savefig(savepath)
+        if show:
+            plt.show()
         
     def calculate_metrics(self, gt_column):
 
@@ -131,7 +137,7 @@ class ClusterMap():
         
 
 class StitchSpots():
-    def __init__(self, path_res, path_config, res_name):
+    def __init__(self, path_res, config, res_name):
 
         '''
         params :    - path_res (str) = root path of the results of ClusterMap's segmentation
@@ -140,19 +146,22 @@ class StitchSpots():
         '''
         
         self.path_res = path_res
-        self.path_config = path_config
         self.res_name = res_name
+        self.config = config
        
-    def gather_tiles(self):
-        print('Gathering tiles')
-        self.spots_gathered = gather_all_tiles(self.path_res, self.res_name)
+#     def gather_tiles(self):
+#         print('Gathering tiles')
+#         self.spots_gathered = gather_all_tiles(self.path_res, self.res_name)
 
     def stitch_tiles(self):
-        print('Loading config')
-        self.config = load_tile_config(self.path_config)
+#         if ifconfig:
+#             print('Loading config')
+#             self.config = load_tile_config(path_config)
+#         else:
+        
         print('Stitching tiles')
-        self.img, self.num_col, self.num_row = create_img_label(self.config)
-        self.spots_all = stitch_all_tiles(self.spots_gathered, self.img, self.num_col, self.num_row, self.config, self.res_name)
+        self.img = create_img_label(self)
+        self.spots_all = stitch_all_tiles(self)
     
     def plot_stitched_data(self, figsize=(16,10), s=0.5):
         spots_all_repr = self.spots_all.loc[self.spots_all['cellid']>=0,:]
@@ -167,7 +176,7 @@ class StitchSpots():
         self.spots_all.to_csv(path_save, index=False)
 
 class CellTyping():
-    def __init__(self, spots_stitched_path, var_path, gene_list, method, use_z):
+    def __init__(self, spots_stitched_path, var, gene_list, method, use_z):
         
         '''
         Perform cell typing on the stitched dataset.
@@ -179,8 +188,7 @@ class CellTyping():
         
         self.spots_stitched_path = spots_stitched_path
         self.spots = pd.read_csv(spots_stitched_path)
-        self.var = pd.read_csv(var_path, header=None)
-        self.var = pd.DataFrame(index=self.var.iloc[:,0].to_list())
+        self.var = var
         self.gene_list = gene_list
         self.method = method
         self.use_z = use_z
@@ -189,7 +197,7 @@ class CellTyping():
         self.palette = None
         self.cell_shape = None
     
-    def gene_profile(self, min_counts_cells=16, min_cells=10, plot=False):
+    def gene_profile(self, min_counts_cells=16, min_cells=10, plot=False,is_batch=False):
         
         '''
         Generate gene profile and find cell centroids. Perform normalization.
@@ -200,12 +208,12 @@ class CellTyping():
         '''
         
         print('Generating gene expression and finding cell centroids')
-        gene_expr, obs = generate_gene_profile(self.spots, self.gene_list, use_z=self.use_z, method=self.method)
+        gene_expr, obs = generate_gene_profile(self.spots, self.gene_list, use_z=self.use_z,is_batch=is_batch, method=self.method)
         print('Normalizing')
         adata = normalize_all(gene_expr, obs, self.var, min_counts_cells=min_counts_cells, min_cells=min_cells, plot=plot)
         self.adata = adata
 
-    def cell_typing(self,n_neighbors=20, resol=1, n_clusters=None, type_clustering='leiden'):
+    def cell_typing(self,n_neighbors=20, n_pcs=10, resol=1, n_clusters=None, type_clustering='leiden'):
 
         '''
         Performs cell typing.
@@ -216,8 +224,10 @@ class CellTyping():
                     - type_clustering (str) = type of clustering for cell typing. Can be 'leiden', 'louvain', or 'hierarchical'
         '''
 
+     
+
         sc.tl.pca(self.adata)
-        sc.pp.neighbors(self.adata, n_neighbors=n_neighbors, n_pcs=10, random_state=42)
+        sc.pp.neighbors(self.adata, n_neighbors=n_neighbors, n_pcs=n_pcs, random_state=42)
         sc.tl.umap(self.adata, random_state=42)
         if type_clustering == 'leiden':
             print('Leiden clustering')
@@ -249,8 +259,20 @@ class CellTyping():
             
         self.markers = markers
        
-    
-    def plot_cell_typing_spots(self,save_path, figsize=(16,10), s=10):
+    def plot_cell_typing_heatmap(self, figsize=(20,10)):
+        
+        '''
+        Plot heatmap
+
+        params :    - figsize (tuple) = size of figure
+        '''
+        
+        sc.pl.rank_genes_groups_heatmap(self.adata, n_genes=5, min_logfoldchange=1, use_raw=False, swap_axes=True, 
+                                vmin=-3, vmax=3, cmap='bwr', show_gene_labels=True,
+                                dendrogram=False, figsize=figsize, save=False)
+
+        
+    def plot_cell_typing_spots(self, save_path=None, figsize=(16,10), s=10,is_batch=False, batch=None, plot_dapi=False,dapi=None):
         
         '''
         Plot the spots colored by their cell typing
@@ -258,14 +280,68 @@ class CellTyping():
         params :    - figsize (tuple) = size of the figure
                     - s (int) = width of each point
         '''
+        if is_batch:
+            target_adata=self.adata[self.adata.obs['position']==batch,:]
+            target_spots=self.spots.loc[self.spots['image_position']==batch,:]
+        else:
+            target_adata=self.adata
+            target_spots=self.spots
+            
+        cell_typing2spots(target_adata, target_spots, method='cellid')
+        spots_repr = target_spots.loc[target_spots['cell_type']!=-1,:]
+        plt.figure(figsize=figsize)
+        cmap=np.random.rand(int(max(spots_repr['cell_type'])+1),3)
 
-        cell_typing2spots(self.adata, self.spots, method=self.method)
-        spots_repr = self.spots.loc[self.spots['cell_type']!=-1,:]
-        plt.figure(figsize=(figsize))
-        sns.scatterplot(x='spot_merged_1', y='spot_merged_2', data=spots_repr, hue='cell_type', s=s, palette=self.palette[:len(np.unique(spots_repr['cell_type']))], legend=True)
+        if plot_dapi:
+            plt.imshow(dapi,origin='lower', cmap='binary_r')
+        plt.scatter(spots_repr['spot_merged_1'],spots_repr['spot_merged_2'],
+                   c=cmap[[int(x) for x in spots_repr['cell_type']]],s=s)
+#         sns.scatterplot(x='spot_merged_1', y='spot_merged_2', data=spots_repr, hue='cell_type', s=s, palette=self.palette[:len(np.unique(spots_repr['cell_type']))], legend=True)
         plt.title('Cell Typing')
-        plt.savefig(save_path)
+        plt.legend(loc='upper right')
+        if save_path:
+            plt.savefig(save_path)
         plt.show()
+
+    def create_cell_shape(self, kernel=np.ones((8,8)), num_iter=2, median_size=5, figsize=(16,10), s=5, num_iter_boundaries=5,is_batch=False, batch=None,plot_dapi=False,dapi=None):
+        
+        '''
+        Generate the boundaries and plot the spots inside
+
+        params :    - kernel (ndarray) : kernel to convolve with the image to perform dilation
+                    - num_iter (int) : number of iterations to perform dilation
+                    - median_size (int) : size of the kernel for Median blur
+                    - figsize (tuple) : size of resulting figure
+                    - s (int) = width of spots
+        '''
+        if is_batch:
+            target_adata=self.adata[self.adata.obs['position']==batch,:]
+            target_spots=self.spots.loc[self.spots['image_position']==batch,:]
+        else:
+            target_adata=self.adata
+            target_spots=self.spots
+        img = df_to_array(target_spots, method='cellid', spot_columns=['spot_merged_1', 'spot_merged_2'])
+        img_blured = create_mask(img, kernel=kernel, num_iter=num_iter, median_size=median_size)
+        img_blured_2 = cv2.dilate(img_blured, kernel=np.ones((5,5)), iterations=num_iter_boundaries)
+        boundaries = ((img_blured_2 - img_blured) != 0).astype(np.float32)
+        
+        spots_repr = target_spots.loc[target_spots['cell_type']!=-1,:]
+
+        ### Plot the result
+        plt.figure(figsize=figsize)
+        if plot_dapi:
+            plt.imshow(dapi,origin='lower', cmap='binary_r')
+        plt.imshow(boundaries, origin='lower', cmap='binary')
+        sns.scatterplot(x='spot_merged_1', y='spot_merged_2', data=spots_repr, hue='cell_type', s=s, palette=self.palette[:len(np.unique(spots_repr['cell_type']))], legend=True)
+        plt.title('Cell Typing with boundaries')
+        plt.legend(loc='upper right')
+        plt.show()        
+ 
+    def save_cell_typing(self, path_save):
+        self.spots.to_csv(path_save+'cell_typing.csv', index=False)
+        self.adata.obs['index'] = self.adata.obs.index
+        self.adata.obs.to_csv(path_save+'cell_centroids.csv', index=False)
+        np.save(path_save+'gene_expr.npy', self.adata.X)
 
 
 
