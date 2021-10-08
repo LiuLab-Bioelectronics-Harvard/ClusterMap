@@ -3,7 +3,6 @@ from .preprocessing import *
 from .postprocessing import *
 from .metrics import *
 from .stitch import *
-from .cell_typing import *
 from .tissue_mapping import *
 from .Points2Cell import *
 import random
