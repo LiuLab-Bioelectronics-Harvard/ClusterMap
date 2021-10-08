@@ -68,6 +68,7 @@ class ClusterMap():
             print('DPC')
             cell_ids = DPC(self,all_coord, all_ngc,cell_num_threshold,use_genedis)
         else:
+            self.num_spots_with_dapi=0
             spatial = np.array(spots_denoised[['spot_location_1', 'spot_location_2', 'spot_location_3']]).astype(np.float32)
             print('DPC')
             cell_ids = DPC(self,spatial,ngc, cell_num_threshold, use_genedis)
