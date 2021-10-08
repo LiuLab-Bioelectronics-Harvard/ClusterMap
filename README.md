@@ -6,7 +6,7 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 ### Install
 
-> !pip install git+https://github.com/LiuLab-Bioelectronics-Harvard/ClusterMap.git
+> pip install git+https://github.com/LiuLab-Bioelectronics-Harvard/ClusterMap.git
 
 We are currently uploading more files for packaging and testing and will finish update soon.
 
