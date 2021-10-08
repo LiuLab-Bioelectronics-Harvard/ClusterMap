@@ -16,6 +16,7 @@ from scipy.spatial import Delaunay
 from sklearn.metrics import adjusted_rand_score
 from skimage.color import label2rgb
 from tqdm import tqdm
+from sklearn.neighbors import LocalOutlierFactor
 
 class ClusterMap():
 
@@ -69,51 +70,86 @@ class ClusterMap():
             spatial = np.array(spots_denoised[['spot_location_1', 'spot_location_2', 'spot_location_3']]).astype(np.float32)
             print('DPC')
             cell_ids = DPC(self,spatial,ngc, cell_num_threshold, use_genedis)
-            
+        
+
         self.spots['clustermap'] = -1
+        
+
+        
         # Let's keep only the spots' labels
         self.spots.loc[spots_denoised.loc[:, 'index'], 'clustermap'] = cell_ids[:len(ngc)]
         
         print('Postprocessing')
         erase_small_clusters(self.spots,self.min_spot_per_cell)
-        res_over_dapi_erosion(self.spots, self.dapi_binary)
+#         res_over_dapi_erosion(self.spots, self.dapi_binary)
         
-    def create_convex_hulls(self,figsize=(10,10)):
+        # Keep all spots id for plotting
+        is_remain=np.in1d(cell_ids, self.spots['clustermap'].unique())
+        self.all_points=all_coord[is_remain]
+        self.all_points_cellid=cell_ids[is_remain]        
+        
+    def create_convex_hulls(self,plot_with_dapi=True, bg_color=[1,1,1], figsize=(10,10)):
         
         '''
         Plot the results of segmentation with convex hull instead of customized cell shapes
         '''
-        
-        cells_unique = np.unique(self.spots['clustermap'])
+        if plot_with_dapi:
+            cell_ids = self.all_points_cellid
+            cells_unique = np.unique(cell_ids)
+            spots_repr = self.all_points
+            
+        else:
+            cell_ids = self.spots['clustermap']
+            cells_unique = np.unique(cell_ids)
+            spots_repr = np.array(self.spots[['spot_location_2', 'spot_location_1']])
+            
+            
         cells_unique = cells_unique[cells_unique>=0]
         img_res = np.zeros(self.dapi_stacked.shape)
         for cell in cells_unique:
-            spots_portion = np.array(self.spots.loc[self.spots['clustermap']==cell,['spot_location_2', 'spot_location_1']])
+            spots_portion = np.array(spots_repr[cell_ids==cell,:2])
+            spots_portion=reject_outliers(spots_portion)
+#             clf = LocalOutlierFactor(n_neighbors=3)
+#             spots_portion = spots_portion[clf.fit_predict(spots_portion)==1,:]
             cell_mask = np.zeros(img_res.shape)
             cell_mask[spots_portion[:,0]-1, spots_portion[:,1]-1] = 1
             cell_ch = convex_hull_image(cell_mask)
             img_res[cell_ch==1] = cell
         self.ch_shape = img_res
         colors=list(np.random.rand(self.number_cell,3))
-        img_res_rgb=label2rgb(img_res,colors=colors,bg_label=0)
+        img_res_rgb=label2rgb(img_res,colors=colors,bg_label=0, bg_color=bg_color)
         plt.figure(figsize=figsize)
         plt.imshow(img_res_rgb, origin='lower')
         plt.title('Cell Shape with Convex Hull')        
         
-    def plot_segmentation(self,figsize=(10,10),plot_dapi=False,method='clustermap',s=5,show=True,save=False,savepath=None):
-        spots_repr = self.spots.loc[self.spots[method]>=0,:]
+    def plot_segmentation(self,figsize=(10,10),plot_with_dapi=True, plot_dapi=False,method='clustermap',s=5,show=True,save=False,savepath=None):
+        
+        cell_ids = self.spots[method]
+        cells_unique = np.unique(cell_ids)
+        spots_repr = np.array(self.spots[['spot_location_2', 'spot_location_1']])[cell_ids>=0]
+        cell_ids=cell_ids[cell_ids>=0]
+        
+        if method == 'clustermap':
+            if plot_with_dapi:
+                cell_ids = self.all_points_cellid
+                cells_unique = np.unique(cell_ids)
+                spots_repr = self.all_points[cell_ids>=0]
+                cell_ids=cell_ids[cell_ids>=0]
+
+        
         if not show:
             plt.ioff()
         plt.figure(figsize=figsize)
-        cmap=np.random.rand(int(max(self.spots[method])+1),3)
-        palette = list(np.random.rand(len(spots_repr[method].unique()),3)) #sns.color_palette('gist_ncar', len(spots_repr['clustermap'].unique()))
+        cmap=np.random.rand(int(max(cell_ids)+1),3)
+        palette = list(np.random.rand(len(cells_unique),3)) 
+        
         if plot_dapi:
             plt.imshow(np.sum(self.dapi_binary,axis=2),origin='lower', cmap='binary_r')
-            plt.scatter(spots_repr['spot_location_1'],spots_repr['spot_location_2'],
-            c=cmap[[int(x) for x in spots_repr[method]]],s=s)
+            plt.scatter(spots_repr[:,1],spots_repr[:,0],
+            c=cmap[[int(x) for x in cell_ids]],s=s)
         else:
-            plt.scatter(spots_repr['spot_location_1'],spots_repr['spot_location_2'],
-            c=cmap[[int(x) for x in spots_repr[method]]],s=s)
+            plt.scatter(spots_repr[:,1],spots_repr[:,0],
+            c=cmap[[int(x) for x in cell_ids]],s=s)
 #             sns.scatterplot(x='spot_location_1', y='spot_location_2', data=spots_repr, hue=method, palette=palette, legend=False)
         plt.title('Segmentation')
         if save:
@@ -239,9 +275,9 @@ class CellTyping():
                                          distance_threshold=None,
                                          affinity='euclidean').fit(self.adata.X)
             
-            self.adata.obs['cell_type'] = agg.labels_.astype('category')
-
-        
+            self.adata.obs['cell_type'] = agg.labels_
+            self.adata.obs['cell_type']=self.adata.obs['cell_type'].astype('category')
+            
         cluster_pl = sns.color_palette("tab20_r", 15)
         self.palette = cluster_pl
         sc.pl.umap(self.adata, color='cell_type', legend_loc='on data',
