@@ -2,7 +2,7 @@
 
 This repository contains an available tool for ClusterMap for multi-scale clustering analysis of spatial gene expression, and ClusterMap example of the STARmap human cardiac organoid dataset.
 
-![8_FeaturedImage](/Users/yichunhe/Dropbox (Harvard University)/DPC paper/Manuscript/Fourth submission/nature_communications_final_submission/PDF/8_FeaturedImage.jpg)
+<img src="./datasets/FeaturedImage.jpg" alt="FeaturedImage" style="zoom:24%;" />
 
 We are currently uploading more files for packaging and testing and will finish update soon.
 
