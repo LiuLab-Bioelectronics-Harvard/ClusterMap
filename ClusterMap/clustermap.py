@@ -83,7 +83,7 @@ class ClusterMap():
         
         print('Postprocessing')
         erase_small_clusters(self.spots,self.min_spot_per_cell)
-#         res_over_dapi_erosion(self.spots, self.dapi_binary)
+        res_over_dapi_erosion(self.spots, self.dapi_binary)
         
         # Keep all spots id for plotting
         is_remain=np.in1d(cell_ids, self.spots['clustermap'].unique())
