@@ -170,6 +170,38 @@ class ClusterMap():
         if show:
             plt.show()
         
+    def plot_segmentation_3D(self,figsize=(10,10),elev=45,azim=-45, method='clustermap',s=10,cmap=None):
+        
+        cell_ids = self.spots[method]
+        cells_unique = np.unique(cell_ids)
+        spots_repr = np.array(self.spots[['spot_location_2', 'spot_location_1','spot_location_3']])[cell_ids>=0]
+        cell_ids=cell_ids[cell_ids>=0]
+        
+        if cmap is None:
+            cmap=np.random.rand(int(max(cell_ids)+1),3)
+        
+        fig = plt.figure(figsize=figsize)
+        ax = plt.axes(projection='3d')
+        ax.view_init(elev=elev, azim=azim)
+        ax.scatter3D(spots_repr[:,1], 
+                     spots_repr[:,0],  
+                     spots_repr[:,2], 
+                     c=cmap[[int(x) for x in cell_ids]],
+                     s=s)
+
+        X=spots_repr[:,1]
+        Y=spots_repr[:,0]
+        Z=spots_repr[:,2]
+        #Create cubic bounding box to simulate equal aspect ratio
+        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+        Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+        Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+        Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+        # Comment or uncomment following both lines to test the fake bounding box:
+        for xb, yb, zb in zip(Xb, Yb, Zb):
+           ax.plot([xb], [yb], [zb], 'w')
+        plt.title(f'3D cell map in {method}')
+            
     def calculate_metrics(self, gt_column):
 
         '''
