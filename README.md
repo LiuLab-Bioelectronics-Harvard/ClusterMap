@@ -18,5 +18,15 @@ Original scripts for generating data at ClusterMap paper are at: https://codeoce
 
 
 
+### Citation
+
+If you find ClusterMap usefull for your work, please cite our paper: 
+
+```
+He, Y., Tang, X., Huang, J. et al. ClusterMap for multi-scale clustering analysis of spatial gene expression. Nat Commun 12, 5909 (2021). https://doi.org/10.1038/s41467-021-26044-x
+```
+
+Contact us at clustermap.issue@gmail.com if you have any issues.
+
 
 Contributor: Yichun He, Emma Bou Hanna, Jiahao Huang, Xin Tang
