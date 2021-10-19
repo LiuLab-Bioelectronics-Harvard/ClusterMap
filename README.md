@@ -6,8 +6,6 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 <img src="./datasets/FeaturedImage.jpg" alt="FeaturedImage" style="zoom:10%;" />
 
-
-
 ***
 
 <br >
@@ -16,11 +14,9 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 > pip install git+https://github.com/LiuLab-Bioelectronics-Harvard/ClusterMap.git
 
-<br >
-
 ***
 
-
+<br >
 
 ### Tutorial
 
