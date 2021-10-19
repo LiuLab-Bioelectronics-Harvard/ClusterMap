@@ -6,21 +6,21 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 <img src="./datasets/FeaturedImage.jpg" alt="FeaturedImage" style="zoom:10%;" />
 
-
+<br >
 
 ***
 
-
+<br >
 
 ### Install
 
 > pip install git+https://github.com/LiuLab-Bioelectronics-Harvard/ClusterMap.git
 
-
+<br >
 
 ***
 
-
+<br >
 
 ### Tutorial
 
@@ -65,7 +65,7 @@ model = ClusterMap(spots=spots, dapi=dapi, gene_list=gene_list, num_dims=num_dim
                    xy_radius=xy_radius,z_radius=0,fast_preprocess=True)
 ```
 
-- Parameters:
+Parameters:
 
 - [x] Preprocess data
 
@@ -73,7 +73,7 @@ model = ClusterMap(spots=spots, dapi=dapi, gene_list=gene_list, num_dims=num_dim
 model_tile.preprocess(dapi_grid_interval=3,pct_filter=pct_filter)
 ```
 
-- Paramters
+Paramters
 
 - [x] Cell segmentation
 
@@ -81,7 +81,7 @@ model_tile.preprocess(dapi_grid_interval=3,pct_filter=pct_filter)
 model_tile.segmentation(cell_num_threshold=0.1,dapi_grid_interval=3,add_dapi=True,use_genedis=True)
 ```
 
-- Paramters
+Paramters
 
 - [ ] Find cell types
 - [ ] Identify tissue layers
@@ -130,14 +130,17 @@ label_img = get_img(img, spots, window_size=window_size, margin=math.ceil(window
 out = split(img, label_img, spots, window_size=window_size, margin=math.ceil(window_size*0.1))
 ```
 
-- Parameters:
+Parameters:
+
+
+
 - [x] Stitch after cell segmentation over the tile
 
 ```
 cell_info=model.stitch(model_tile,out,tile_num, cell_info)
 ```
 
-- Parameters:
+Parameters:
 
 
 
@@ -174,9 +177,11 @@ Currently testing on several samples:
 - 1mins 42s for 49,712 input spots (all 273,242 spots) without GPU
 - 34mins 53s for 471,295 input spots without GPU
 
+<br >
+
 ***
 
-
+<br >
 
 ### Other Info
 
