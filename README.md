@@ -6,7 +6,7 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 <img src="./datasets/FeaturedImage.jpg" alt="FeaturedImage" style="zoom:10%;" />
 
-<br >
+
 
 ***
 
@@ -20,7 +20,7 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 ***
 
-<br >
+
 
 ### Tutorial
 
@@ -176,8 +176,6 @@ Currently testing on several samples:
 
 - 1mins 42s for 49,712 input spots (all 273,242 spots) without GPU
 - 34mins 53s for 471,295 input spots without GPU
-
-<br >
 
 ***
 
