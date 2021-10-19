@@ -6,17 +6,21 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 <img src="./datasets/FeaturedImage.jpg" alt="FeaturedImage" style="zoom:10%;" />
 
-```markdown
-------
-```
+
+
+***
+
+
 
 ### Install
 
 > pip install git+https://github.com/LiuLab-Bioelectronics-Harvard/ClusterMap.git
 
-```markdown
-------
-```
+
+
+***
+
+
 
 ### Tutorial
 
@@ -66,9 +70,11 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 #### Analysis on STARmap 3D V1 28-gene sample
 
-```markdown
-------
-```
+
+
+***
+
+
 
 ### Other Info
 
