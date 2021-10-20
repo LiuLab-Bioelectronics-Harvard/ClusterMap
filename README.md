@@ -77,9 +77,9 @@ model_tile.preprocess(dapi_grid_interval=3,pct_filter=pct_filter)
 model_tile.segmentation(cell_num_threshold=0.1,dapi_grid_interval=3,add_dapi=True,use_genedis=True)
 ```
 
-Paramters
+​	*Paramters*
 
-- [x] create adata, saved in model.cell_adata
+- [x] create adata, saved in model.cell_adata (Cell typing processing is mostly based on [Scanpy](https://scanpy.readthedocs.io/en/stable/index.html) and [anndata](https://anndata.readthedocs.io/en/latest/index.html))
 
 ```
 model.create_cell_adata(cellid,geneid,gene_list,genes,num_dims)
@@ -90,8 +90,6 @@ model.create_cell_adata(cellid,geneid,gene_list,genes,num_dims)
 ```
 model.cell_typing(cluster_method='leiden',resol=1.5)
 ```
-
-
 
 - [ ] Identify tissue layers
 
@@ -146,7 +144,7 @@ cluster_pl=model.plot_cell_typing(umap=True,heatmap=False, celltypemap=True)
    out = split(img, label_img, spots, window_size=window_size, margin=math.ceil(window_size*0.1))
    ```
 
-   Parameters:
+   *Parameters:*
 
    - [x] Stitch after cell segmentation over the tile
 
@@ -154,7 +152,7 @@ cluster_pl=model.plot_cell_typing(umap=True,heatmap=False, celltypemap=True)
    cell_info=model.stitch(model_tile,out,tile_num, cell_info)
    ```
 
-   Parameters:
+   *Parameters:*
 
 4. **Cell typing relative functions**
 
