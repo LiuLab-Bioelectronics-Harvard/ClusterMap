@@ -61,7 +61,7 @@ model = ClusterMap(spots=spots, dapi=dapi, gene_list=gene_list, num_dims=num_dim
                    xy_radius=xy_radius,z_radius=0,fast_preprocess=True)
 ```
 
-<small>Parameters:</small>
+*Parameters:*
 
 - [x] Preprocess data
 
@@ -69,7 +69,7 @@ model = ClusterMap(spots=spots, dapi=dapi, gene_list=gene_list, num_dims=num_dim
 model_tile.preprocess(dapi_grid_interval=3,pct_filter=pct_filter)
 ```
 
-<small>Paramters</small>
+*Paramters*
 
 - [x] Cell segmentation
 
