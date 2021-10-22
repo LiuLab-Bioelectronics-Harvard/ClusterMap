@@ -21,14 +21,14 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 ### Tutorial
 
 - We are currently uploading more files for packaging and testing and will finish update soon.
+- Read a more detailed tutorial [here](./Tutorial.md).
 
 #### Basics
 
 **Input data**
 
-`spots`: data matrix of mRNA spots with 2D/3D physical location and gene identity information (pandas dataframe)
-
-* Example
+- `spots`: data matrix of mRNA spots with 2D/3D physical location and gene identity information (pandas dataframe)
+  - Example
 
 | Index | spot_location_1 | spot_location_2 | spot_location_3 | gene | Optional other info: gene_name |
 | ----- | :-------------: | :-------------: | :-------------: | :--: | :----------------------------: |
@@ -36,29 +36,29 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 | 1     |       110       |       243       |        1        |  1   |            Syndig1l            |
 | 2     |       115       |       178       |        1        |  2   |             Acot13             |
 
-`dapi`: a 2D/3D image corronsponding to `spots`
+- `dapi`: a 2D/3D image corronsponding to `spots`
 
 
 
 **Input Parameters**
 
-`xy_radius`: estimation of radius of cells in x-y plane
+- `xy_radius`: estimation of radius of cells in x-y plane
 
-`z_radius`: estimation of radius of cells in z axis; 0 if data is 2D.
+- `z_radius`: estimation of radius of cells in z axis; 0 if data is 2D.
 
-`cell_num_threshold`:  a threshold for deciding the number of cells. A larger value gives more cells; Default: 0.1.
+- `cell_num_threshold`:  a threshold for deciding the number of cells. A larger value gives more cells; Default: 0.1.
 
-`dapi_grid_interval`: sample interval in DAPI image. A large value will consume more computation resources and give more accurate results (most of the time). Default: 3.
+- `dapi_grid_interval`: sample interval in DAPI image. A large value will consume more computation resources and give more accurate results (most of the time). Default: 3.
 
 
 
 **Output parameters**
 
-`model.cellid_unique`: unique cell id values
+- `model.cellid_unique`: unique cell id values
 
-`model.cellcenter_unique`:  cell centers in order of `model.cellid_unique`
+- `model.cellcenter_unique`:  cell centers in order of `model.cellid_unique`
 
-#### Read more [here](./Tutorial.md) # It works!
+#### 
 
 #### Analysis on STARmap 2D V1 1020-gene sample
 
@@ -78,10 +78,9 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 #### Time estimation
 
-Time is dependent on the number of input spots, and potentially the area the DAPI foreground. Currently testing on several samples: 
-
-- 1mins 42s for 49,712 input spots (all 273,242 spots) without GPU, single thread
-- 34mins 53s for 471,295 input spots without GPU, single thread
+- Time is dependent on the number of input spots, and potentially the area the DAPI foreground. Currently testing on several samples: 
+  - 1mins 42s for 49,712 input spots (all 273,242 spots) without GPU, single thread
+  - 34mins 53s for 471,295 input spots without GPU, single thread
 
 ***
 
