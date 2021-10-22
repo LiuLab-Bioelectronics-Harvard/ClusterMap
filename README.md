@@ -52,131 +52,13 @@ This repository contains an available tool for ClusterMap for multi-scale cluste
 
 
 
-**Basic functions**
-
-- [x] Build a ClusterMap model
-
-```
-model = ClusterMap(spots=spots, dapi=dapi, gene_list=gene_list, num_dims=num_dims,
-                   xy_radius=xy_radius,z_radius=0,fast_preprocess=True)
-```
-
-​	*Parameters:*
-
-- [x] Preprocess data
-
-```
-model_tile.preprocess(dapi_grid_interval=5, pct_filter=0.1, LOF=False)
-```
-
-> `dapi_grid_interval`: int (default: 5).	The size of sampling interval on DAPI image.
->
-> `pct_filter`: float (between 0 and 1, default: 0.1).	The percentage of filtered noise reads.
->
-> `LOF`: bool (default: False).	Choose if to apply [local noise rejction](https://scikit-learn.org/stable/auto_examples/neighbors/plot_lof_outlier_detection.html).
->
-
-- [x] Cell segmentation
-
-```
-model_tile.segmentation(cell_num_threshold=0.1,dapi_grid_interval=3,add_dapi=True,use_genedis=True)
-```
-
-​	*Paramters*
-
-- [x] create adata, saved in model.cell_adata (Cell typing processing is mostly based on [Scanpy](https://scanpy.readthedocs.io/en/stable/index.html) and [anndata](https://anndata.readthedocs.io/en/latest/index.html))
-
-```
-model.create_cell_adata(cellid,geneid,gene_list,genes,num_dims)
-```
-
-- [x] Find cell types
-
-```
-model.cell_typing(cluster_method='leiden',resol=1.5)
-```
-
-- [ ] Identify tissue layers
-
-**Other functions**
-
-1. **Plot functions**
-
-- [x] Show spatial distribution of interested gene markers
-
-```
-model.plot_gene(marker_genes,genes_list,figsize=(4,4),s=0.6)
-```
-
-- [x] Plot cell segmentation results
-
-```
-model.plot_segmentation(figsize=(8,8),s=0.005,plot_with_dapi=True,plot_dapi=True)
-```
-
-- [x] Plot cell segmentation results in 3D
-
-```
-model.plot_segmentation_3D(figsize=(8,8),elev=45, azim=-65)
-```
-
-- [ ] Construct and plot convex hull of cells
-- [ ] Plot cell typing results
-
-```
-cluster_pl=model.plot_cell_typing(umap=True,heatmap=False, celltypemap=True)
-```
-
-
-
-2. **Save functions**
-
-- [ ] Save cell segmentation results
-- [ ] Save cell typing results
-
-3. **Large input data**
-
-   If input data is large (>100,000 spots), processing over whole data at one time may be time-consuming, we implemented trimming and stitching functions to process over each trimmed tile to save computational resources. Note that there won't be any cracks in results as we consider a 10% overlap when trimming and stitching.
-
-   **Relative functions:**  
-
-   - [x] Trim
-
-   ```
-   img = dapi
-   window_size=2000
-   label_img = get_img(img, spots, window_size=window_size, margin=math.ceil(window_size*0.1))
-   out = split(img, label_img, spots, window_size=window_size, margin=math.ceil(window_size*0.1))
-   ```
-
-   *Parameters:*
-
-   - [x] Stitch after cell segmentation over the tile
-
-   ```
-   cell_info=model.stitch(model_tile,out,tile_num, cell_info)
-   ```
-
-   *Parameters:*
-
-4. **Cell typing relative functions**
-
-   - [x] Merge cell types
-
-   ```
-   merge_list = [[0,2,3,8,9],[1,4,5,6,10]]
-   model.merge_multiple_clusters(merge_list)
-   ```
-
-
-
 **Output parameters**
 
 `model.cellid_unique`: unique cell id values
 
 `model.cellcenter_unique`:  cell centers in order of `model.cellid_unique`
 
-
+#### Read more [here](./Tutorial.md) # It works!
 
 #### Analysis on STARmap 2D V1 1020-gene sample
 
