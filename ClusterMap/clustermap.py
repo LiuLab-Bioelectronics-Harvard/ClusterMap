@@ -571,7 +571,7 @@ class ClusterMap():
                 self.all_points=updated_all_points
     
 
-    def compute_ncc(self,tissue_radius,n_neighbors=15):
+    def compute_ncc(self,tissue_radius=400,n_neighbors=15):
         cell_types=self.cell_adata.obs['cell_type'].unique()
         cell_types = cell_types[cell_types>=0]
         
